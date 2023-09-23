@@ -4,6 +4,7 @@ const router = express.Router();
 const Post = require("../models/Post");
 const verifyToken = require("../middleware/verifyToken");
 const verifyAuthor = require("../middleware/verifyAuthor");
+const verifyAdminOrAuthor = require("../middleware/verifyAdminOrAuthor");
 const upload = require("../middleware/upload");
 
 // Create a new blog post
@@ -66,13 +67,12 @@ router.get("/posts", async (req, res) => {
 // Get a single blog post by ID
 router.get("/:postId", async (req, res) => {
   try {
-    const post = await Post.findById(req.params.postId).populate(
-      "author",
-      "username"
-    );
+    const post = await Post.findById(req.params.postId);
+
     if (!post) {
       return res.status(404).json({ message: "Post not found" });
     }
+
     res.json(post);
   } catch (error) {
     console.error(error);
@@ -81,7 +81,7 @@ router.get("/:postId", async (req, res) => {
 });
 
 // Update a blog post by ID
-router.put("/:postId", verifyToken, async (req, res) => {
+router.put("/:postId", verifyToken, verifyAdminOrAuthor, async (req, res) => {
   try {
     const { title, content, tags } = req.body;
 
@@ -103,7 +103,7 @@ router.put("/:postId", verifyToken, async (req, res) => {
 });
 
 // Delete a blog post by ID
-router.delete("/:postId", verifyToken, async (req, res) => {
+router.delete("/:postId", verifyToken, verifyAdminOrAuthor, async (req, res) => {
   try {
     const deletedPost = await Post.findByIdAndDelete(req.params.postId);
 
@@ -162,7 +162,7 @@ router.get("/search", async (req, res) => {
   }
 });
 
-router.post("/upload-image", upload.single("image"), async (req, res) => {
+router.post("/upload-image", verifyToken, verifyAdminOrAuthor, upload.single("image"), async (req, res) => {
   try {
     const imageUrl = req.file.path;
     const { blogPostId, position, isCover } = req.body;

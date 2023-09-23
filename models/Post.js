@@ -30,7 +30,6 @@ const postSchema = new mongoose.Schema({
       fileType: String, // The type of the file (e.g., image/jpeg)
       position: Number
     }],
-
   },
 });
 

@@ -8,11 +8,13 @@ require('dotenv').config();
 const authRoutes = require('./routes/auth');
 const postRoutes = require('./routes/posts');
 const userActivityRoutes = require('./routes/user');
+const authorRoutes = require("./routes/author");
 
 // API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/posts', postRoutes);
 app.use('/api/user', userActivityRoutes);
+app.use('/api/author', authorRoutes);
 
 const app = express();
 const port = process.env.PORT || 5000;

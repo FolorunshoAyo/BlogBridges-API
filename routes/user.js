@@ -4,6 +4,8 @@ const router = express.Router();
 const UserActivity = require("../models/UserActivity");
 const verifyToken = require("../middleware/verifyToken");
 const verifyUser = require("../middleware/verifyUser");
+const User = require("../models/User");
+const Follow = require("../models/Follow");
 const Post = require("../models/Post");
 const Comment = require("../models/Comment");
 const Reply = require("../models/Reply");
@@ -24,6 +26,119 @@ router.get("/activity", verifyToken, verifyUser, async (req, res) => {
     }
 
     res.json(userActivity);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Server Error" });
+  }
+});
+
+// Define an endpoint to get user profile and paginated posts
+router.get('/user/:userId', async (req, res) => {
+  const { userId } = req.params;
+  const page = parseInt(req.query.page) || 1; // Current page (default: 1)
+  const pageSize = parseInt(req.query.pageSize) || 10; // Number of posts per page (default: 10)
+
+  try {
+    // Find the user
+    const user = await User.findById(userId);
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Count the total number of user's posts
+    const totalPosts = await Post.countDocuments({ author: userId });
+
+    // Calculate the skip value based on the current page and page size
+    const skip = (page - 1) * pageSize;
+
+    // Find the user's posts with pagination
+    const userPosts = await Post.find({ author: userId })
+      .skip(skip)
+      .limit(pageSize);
+
+    // Return user data, posts, and pagination info
+    res.json({
+      user,
+      posts: userPosts,
+      currentPage: page,
+      totalPages: Math.ceil(totalPosts / pageSize),
+      pageSize,
+      totalPosts,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Define an endpoint to follow another user
+router.post('/follow/:userIdToFollow', async (req, res) => {
+  const { id: userId } = req.user;
+  const { userIdToFollow } = req.params;
+
+  try {
+    // Check if the user is trying to follow themselves
+    if (userId === userIdToFollow) {
+      return res.status(400).json({ error: 'You cannot follow yourself' });
+    }
+
+    // Check if the user is already following the target user
+    const existingFollow = await Follow.findOne({ follower: userId, followedUser: userIdToFollow });
+
+    if (existingFollow) {
+      return res.status(400).json({ error: 'You are already following this user' });
+    }
+
+    // Create a new follow relationship
+    const follow = new Follow({
+      follower: userId,
+      followedUser: userIdToFollow,
+    });
+
+    await follow.save();
+
+    // Increment the totalFollows field for the user
+    await User.findByIdAndUpdate(userId, { $inc: { totalFollows: 1 } });
+
+    res.json({ message: 'You are now following the user' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Get a single blog post by ID
+router.get("/:postId", verifyToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    const post = await Post.findById(req.params.postId);
+    const user = await User.findById(userId);
+
+    if (!post) {
+      return res.status(404).json({ message: "Post not found" });
+    }
+
+    // Update the user's readingHistory
+    user.readingHistory.push({
+      post: postId,
+      timestamp: new Date(),
+    });
+
+    // Update the user's interestedTags, ensuring no duplicates
+    const postTags = post.tags;
+    postTags.forEach((tag) => {
+      if (!user.interestedTags.includes(tag)) {
+        user.interestedTags.push(tag);
+      }
+    });
+
+    // Save the updated user data
+    await user.save();
+
+
+    res.json(post);
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Server Error" });
