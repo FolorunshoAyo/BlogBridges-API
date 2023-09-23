@@ -7,10 +7,12 @@ require('dotenv').config();
 // ROUTE IMPORTS
 const authRoutes = require('./routes/auth');
 const postRoutes = require('./routes/posts');
+const userActivityRoutes = require('./routes/user');
 
 // API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/posts', postRoutes);
+app.use('/api/user', userActivityRoutes);
 
 const app = express();
 const port = process.env.PORT || 5000;

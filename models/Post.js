@@ -9,6 +9,10 @@ const postSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
+  coverImage: {
+    type: String,
+    required: true
+  },
   author: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
@@ -24,7 +28,9 @@ const postSchema = new mongoose.Schema({
     files: [{
       fileName: String, // The name of the file
       fileType: String, // The type of the file (e.g., image/jpeg)
+      position: Number
     }],
+
   },
 });
 
