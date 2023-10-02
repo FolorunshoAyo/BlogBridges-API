@@ -1,7 +1,6 @@
 const express = require("express");
-const authenticate = require("../middleware/authenticate");
 const Post = require("../models/Post");
-const Comment = require("../models/Comment");
+// const Comment = require("../models/Comment");
 // const Like = require('../models/Like');
 const verifyToken = require("../middleware/verifyToken");
 const verifyAuthor = require("../middleware/verifyAuthor");
@@ -181,6 +180,31 @@ router.get('/posts/:authorId', async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Update user profile (username, bio, profileImage)
+router.put('/profile', verifyToken, verifyAuthor, async (req, res) => {
+  const userId = req.user.id; // Assuming you have a user object in req
+  const { username, bio, profileImage } = req.body;
+
+  try {
+    const user = await User.findById(userId);
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    user.username = username || user.username;
+    user.bio = bio || user.bio;
+    user.profileImage = profileImage || user.profileImage;
+
+    await user.save();
+
+    return res.status(200).json({ message: 'Profile updated successfully' });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ message: 'Internal server error' });
   }
 });
 
