@@ -45,6 +45,10 @@ const userSchema = new mongoose.Schema({
   },
   bio: String,
   profileImage: String,
+  isSuspended: {
+    type: Boolean,
+    default: false
+  }
 });
 
 const User = mongoose.model('User', userSchema);

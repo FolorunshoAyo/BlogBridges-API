@@ -4,12 +4,12 @@ const User = require("../models/User");
 // const Comment = require("../models/Comment");
 // const Like = require('../models/Like');
 const verifyToken = require("../middleware/verifyToken");
-const verifyAuthor = require("../middleware/verifyAuthor");
+const verifyAdmin = require("../middleware/verifyAdmin");
 
 const router = express.Router();
 
 // Get statistics for the currently authenticated author
-router.get("/statistics", verifyToken, verifyAuthor, async (req, res) => {
+router.get("/statistics", verifyToken, verifyAdmin, async (req, res) => {
   try {
     const authorId = req.user.id;
 
@@ -185,7 +185,7 @@ router.get('/posts/:authorId', async (req, res) => {
 });
 
 // Update user profile (username, bio, profileImage)
-router.put('/profile', verifyToken, verifyAuthor, async (req, res) => {
+router.put('/profile', verifyToken, verifyAdmin, async (req, res) => {
   const userId = req.user.id; // Assuming you have a user object in req
   const { username, bio, profileImage } = req.body;
 
@@ -203,6 +203,70 @@ router.put('/profile', verifyToken, verifyAuthor, async (req, res) => {
     await user.save();
 
     return res.status(200).json({ message: 'Profile updated successfully' });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+// Verify author post (admin-only)
+router.put('/verify-post/:postId', verifyToken, verifyAdmin, async (req, res) => {
+    const postId = req.params.postId;
+  
+    try {
+      const post = await Post.findById(postId);
+  
+      if (!post) {
+        return res.status(404).json({ message: 'Post not found' });
+      }
+  
+      // Mark the post as verified
+      post.isVerified = true;
+  
+      await post.save();
+  
+      return res.status(200).json({ message: 'Post verified' });
+    } catch (error) {
+      console.error(error);
+      return res.status(500).json({ message: 'Internal server error' });
+    }
+  });
+  
+router.put('/suspend/:userId', verifyToken, verifyAdmin, async (req, res) => {
+  const userId = req.params.userId;
+
+  try {
+    const user = await User.findById(userId);
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    user.isSuspended = true;
+
+    await user.save();
+
+    return res.status(200).json({ message: 'User account suspended' });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+// Delete user account (admin-only)
+router.delete('/delete/:userId', verifyToken, verifyAdmin, async (req, res) => {
+  const userId = req.params.userId;
+
+  try {
+    const user = await User.findById(userId);
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    await user.remove();
+
+    return res.status(200).json({ message: 'User account deleted' });
   } catch (error) {
     console.error(error);
     return res.status(500).json({ message: 'Internal server error' });
