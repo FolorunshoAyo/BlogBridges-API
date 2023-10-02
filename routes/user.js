@@ -32,46 +32,6 @@ router.get("/activity", verifyToken, verifyUser, async (req, res) => {
   }
 });
 
-// Define an endpoint to get user profile and paginated posts
-router.get('/user/:userId', async (req, res) => {
-  const { userId } = req.params;
-  const page = parseInt(req.query.page) || 1; // Current page (default: 1)
-  const pageSize = parseInt(req.query.pageSize) || 10; // Number of posts per page (default: 10)
-
-  try {
-    // Find the user
-    const user = await User.findById(userId);
-
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-
-    // Count the total number of user's posts
-    const totalPosts = await Post.countDocuments({ author: userId });
-
-    // Calculate the skip value based on the current page and page size
-    const skip = (page - 1) * pageSize;
-
-    // Find the user's posts with pagination
-    const userPosts = await Post.find({ author: userId })
-      .skip(skip)
-      .limit(pageSize);
-
-    // Return user data, posts, and pagination info
-    res.json({
-      user,
-      posts: userPosts,
-      currentPage: page,
-      totalPages: Math.ceil(totalPosts / pageSize),
-      pageSize,
-      totalPosts,
-    });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
 // Define an endpoint to follow another user
 router.post('/follow/:userIdToFollow', async (req, res) => {
   const { id: userId } = req.user;

@@ -25,8 +25,17 @@ router.post("/", verifyToken, verifyAuthor, async (req, res) => {
 
 // Get all blog posts with additional information
 router.get("/posts", async (req, res) => {
+  const page = parseInt(req.query.page) || 1; // Current page (default: 1)
+  const pageSize = parseInt(req.query.pageSize) || 10; // Number of posts per page (default: 10)
+
   try {
     const posts = await Post.aggregate([
+      {
+        $skip: (page - 1) * pageSize, // Implement pagination
+      },
+      {
+        $limit: pageSize,
+      },
       {
         $lookup: {
           from: "users",
@@ -44,6 +53,29 @@ router.get("/posts", async (req, res) => {
         },
       },
       {
+        $lookup: {
+          from: 'users', // Assuming your users collection is named 'users'
+          let: { post_id: '$_id' },
+          pipeline: [
+            {
+              $unwind: '$readingHistory', // Unwind the readingHistory array
+            },
+            {
+              $match: {
+                $expr: { $eq: ['$readingHistory', '$$post_id'] }, // Match posts in readingHistory
+              },
+            },
+            {
+              $group: {
+                _id: null,
+                userCount: { $sum: 1 }, // Count users for each post
+              },
+            },
+          ],
+          as: 'usersWithPostInHistory',
+        },
+      },
+      {
         $project: {
           _id: 1,
           title: 1,
@@ -53,6 +85,7 @@ router.get("/posts", async (req, res) => {
           authorInfo: { username: 1 },
           likesCount: { $size: "$likesData" },
           commentsCount: { $size: "$comments" },
+          userCount: { $arrayElemAt: ['$usersWithPostInHistory.userCount', 0] }, // Extract user count
         },
       },
     ]);

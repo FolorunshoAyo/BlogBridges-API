@@ -48,8 +48,17 @@ router.get("/statistics", verifyToken, verifyAuthor, async (req, res) => {
         },
       },
       {
+        $lookup: {
+          from: "postviews",
+          localField: "_id",
+          foreignField: "post",
+          as: "viewedPosts",
+        },
+      },
+      {
         $project: {
           likesCount: { $size: "$likesData" },
+          viewedPostsCount: { $size: "$viewedPosts" },
         },
       },
       {
@@ -75,6 +84,103 @@ router.get("/statistics", verifyToken, verifyAuthor, async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Server Error" });
+  }
+});
+
+// Define an endpoint to get user profile and paginated posts
+router.get('/posts/:authorId', async (req, res) => {
+  const { authorId } = req.params;
+  const page = parseInt(req.query.page) || 1; // Current page (default: 1)
+  const pageSize = parseInt(req.query.pageSize) || 10; // Number of posts per page (default: 10)
+
+  try {
+    // Find the user
+    const user = await User.findById(authorId);
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Count the total number of user's posts
+    const totalPosts = await Post.countDocuments({ author: authorId });
+
+    // Find the user's posts with pagination
+    const userPosts = await Post.aggregate([
+      {
+        $match: { author: authorId },
+      },
+      {
+        $skip: (page - 1) * pageSize, // Implement pagination
+      },
+      {
+        $limit: pageSize,
+      },
+      {
+        $lookup: {
+          from: "users",
+          localField: "author",
+          foreignField: "_id",
+          as: "authorInfo",
+        },
+      },
+      {
+        $lookup: {
+          from: 'likes',
+          localField: '_id',
+          foreignField: 'targetId',
+          as: 'likesData',
+        },
+      },
+      {
+        $lookup: {
+          from: 'users', // Assuming your users collection is named 'users'
+          let: { post_id: '$_id' },
+          pipeline: [
+            {
+              $unwind: '$readingHistory', // Unwind the readingHistory array
+            },
+            {
+              $match: {
+                $expr: { $eq: ['$readingHistory', '$$post_id'] }, // Match posts in readingHistory
+              },
+            },
+            {
+              $group: {
+                _id: null,
+                userCount: { $sum: 1 }, // Count users for each post
+              },
+            },
+          ],
+          as: 'usersWithPostInHistory',
+        },
+      },
+      {
+        $project: {
+          _id: 1,
+          title: 1,
+          // content: 1,
+          coverImage: 1,
+          publicationDate: 1,
+          authorInfo: { username: 1 },
+          likesCount: { $size: "$likesData" },
+          commentsCount: { $size: "$comments" },
+          userCount: { $arrayElemAt: ['$usersWithPostInHistory.userCount', 0] }, // Extract user count
+        },
+      },
+    ]);
+
+    // Return user data, posts, and pagination info
+    res.json({
+      user,
+      posts: userPosts,
+      currentPage: page,
+      totalPages: Math.ceil(totalPosts / pageSize),
+      pageSize,
+      totalPosts,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
