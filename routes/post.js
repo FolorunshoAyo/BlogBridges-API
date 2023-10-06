@@ -11,10 +11,10 @@ const upload = require("../middleware/upload");
 // Create a new blog post
 router.post("/new", verifyToken, verifyAuthor, async (req, res) => {
   try {
-    const { title, content, tags } = req.body;
+    const { title, content, tags, coverImage } = req.body;
     const author = req.user.id; // Assuming you're using JWT for authentication
 
-    const newPost = new Post({ title, content, author, tags });
+    const newPost = new Post({ title, content, author, tags, coverImage });
     const savedPost = await newPost.save();
 
     res.status(201).json(savedPost);

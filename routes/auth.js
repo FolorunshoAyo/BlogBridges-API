@@ -10,7 +10,11 @@ const router = express.Router();
 router.post('/register', async (req, res) => {
   try {
     const { username = null, email = null, password = null, role = null } = req.body;
-    const existingUser = await User.findOne({ username });
+    
+    const existingUser = await User.findOne({ 
+      $or: [{ username }, { email }], 
+    });
+
     const emailRegex = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;
 
     if (!username || !email || !password) {

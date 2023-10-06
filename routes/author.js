@@ -35,7 +35,7 @@ router.get("/statistics", verifyToken, verifyAuthor, async (req, res) => {
     ]);
 
     // Calculate the number of likes by aggregating likes on the author's posts
-    const likesCount = await Post.aggregate([
+    const likesAndViewsCount = await Post.aggregate([
       {
         $match: { author: authorId },
       },
@@ -47,14 +47,17 @@ router.get("/statistics", verifyToken, verifyAuthor, async (req, res) => {
           as: "likesData",
         },
       },
+      // Lookup users who have read the posts and populate 'readByUsers' field
       {
         $lookup: {
-          from: "postviews",
-          localField: "_id",
-          foreignField: "post",
-          as: "viewedPosts",
+          from: 'users', // Collection name for the 'User' model
+          localField: '_id',
+          foreignField: 'readHistory',
+          as: 'viewedPosts',
         },
       },
+      // Unwind the 'readByUsers' array
+      { $unwind: '$viewedPosts' },
       {
         $project: {
           likesCount: { $size: "$likesData" },
@@ -65,22 +68,28 @@ router.get("/statistics", verifyToken, verifyAuthor, async (req, res) => {
         $group: {
           _id: null,
           totalLikes: { $sum: "$likesCount" },
+          viewedPostsCount: { $sum: "$viewedPosts" }
         },
       },
     ]);
 
+    console.log(likesAndViewsCount);
+
     // Extract the total likes count from the aggregation result
-    const totalLikes = likesCount[0] ? likesCount[0].totalLikes : 0;
-    const totalCommentCount = commentCount[0].totalCommentCount;
+    const totalLikes = likesAndViewsCount[0]? likesAndViewsCount[0].totalLikes : 0;
+    const totalCommentCount = commentCount[0]? commentCount[0].totalCommentCount : 0;
+    const totalViews = likesAndViewsCount[0]? likesAndViewsCount[0].viewedPostsCount : 0;
 
     // Create the statistics object
     const statistics = {
       postCount,
       totalCommentCount,
       totalLikes,
+      totalViews
     };
 
     res.json(statistics);
+
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Server Error" });
@@ -181,31 +190,6 @@ router.get('/posts/:authorId', async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-// Update user profile (username, bio, profileImage)
-router.put('/profile', verifyToken, verifyAuthor, async (req, res) => {
-  const userId = req.user.id; // Assuming you have a user object in req
-  const { username, bio, profileImage } = req.body;
-
-  try {
-    const user = await User.findById(userId);
-
-    if (!user) {
-      return res.status(404).json({ message: 'User not found' });
-    }
-
-    user.username = username || user.username;
-    user.bio = bio || user.bio;
-    user.profileImage = profileImage || user.profileImage;
-
-    await user.save();
-
-    return res.status(200).json({ message: 'Profile updated successfully' });
-  } catch (error) {
-    console.error(error);
-    return res.status(500).json({ message: 'Internal server error' });
   }
 });
 
