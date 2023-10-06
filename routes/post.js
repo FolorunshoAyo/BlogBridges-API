@@ -2,13 +2,14 @@
 const express = require("express");
 const router = express.Router();
 const Post = require("../models/Post");
+const User = require("../models/User");
 const verifyToken = require("../middleware/verifyToken");
 const verifyAuthor = require("../middleware/verifyAuthor");
 const verifyAdminOrAuthor = require("../middleware/verifyAdminOrAuthor");
 const upload = require("../middleware/upload");
 
 // Create a new blog post
-router.post("/", verifyToken, verifyAuthor, async (req, res) => {
+router.post("/new", verifyToken, verifyAuthor, async (req, res) => {
   try {
     const { title, content, tags } = req.body;
     const author = req.user.id; // Assuming you're using JWT for authentication
@@ -24,7 +25,7 @@ router.post("/", verifyToken, verifyAuthor, async (req, res) => {
 });
 
 // Get all blog posts with additional information
-router.get("/posts", async (req, res) => {
+router.get("/all-posts", async (req, res) => {
   const page = parseInt(req.query.page) || 1; // Current page (default: 1)
   const pageSize = parseInt(req.query.pageSize) || 10; // Number of posts per page (default: 10)
 
@@ -46,23 +47,23 @@ router.get("/posts", async (req, res) => {
       },
       {
         $lookup: {
-          from: 'likes',
-          localField: '_id',
-          foreignField: 'targetId',
-          as: 'likesData',
+          from: "likes",
+          localField: "_id",
+          foreignField: "targetId",
+          as: "likesData",
         },
       },
       {
         $lookup: {
-          from: 'users', // Assuming your users collection is named 'users'
-          let: { post_id: '$_id' },
+          from: "users", // Assuming your users collection is named 'users'
+          let: { post_id: "$_id" },
           pipeline: [
             {
-              $unwind: '$readingHistory', // Unwind the readingHistory array
+              $unwind: "$readingHistory", // Unwind the readingHistory array
             },
             {
               $match: {
-                $expr: { $eq: ['$readingHistory', '$$post_id'] }, // Match posts in readingHistory
+                $expr: { $eq: ["$readingHistory", "$$post_id"] }, // Match posts in readingHistory
               },
             },
             {
@@ -72,7 +73,7 @@ router.get("/posts", async (req, res) => {
               },
             },
           ],
-          as: 'usersWithPostInHistory',
+          as: "usersWithPostInHistory",
         },
       },
       {
@@ -85,7 +86,7 @@ router.get("/posts", async (req, res) => {
           authorInfo: { username: 1 },
           likesCount: { $size: "$likesData" },
           commentsCount: { $size: "$comments" },
-          userCount: { $arrayElemAt: ['$usersWithPostInHistory.userCount', 0] }, // Extract user count
+          userCount: { $arrayElemAt: ["$usersWithPostInHistory.userCount", 0] }, // Extract user count
         },
       },
     ]);
@@ -98,13 +99,34 @@ router.get("/posts", async (req, res) => {
 });
 
 // Get a single blog post by ID
-router.get("/:postId", async (req, res) => {
+router.get("/:postId", verifyToken, async (req, res) => {
   try {
-    const post = await Post.findById(req.params.postId);
+    const userId = req.user.id;
+    const postId = req.params.postId;
+
+    const post = await Post.findById(postId);
+    const user = await User.findById(userId);
 
     if (!post) {
       return res.status(404).json({ message: "Post not found" });
     }
+
+    // Update the user's readingHistory
+    user.readingHistory.push({
+      post: postId,
+      timestamp: new Date(),
+    });
+
+    // Update the user's interestedTags, ensuring no duplicates
+    const postTags = post.tags;
+    postTags.forEach((tag) => {
+      if (!user.interestedTags.includes(tag)) {
+        user.interestedTags.push(tag);
+      }
+    });
+
+    // Save the updated user data
+    await user.save();
 
     res.json(post);
   } catch (error) {
@@ -136,20 +158,25 @@ router.put("/:postId", verifyToken, verifyAdminOrAuthor, async (req, res) => {
 });
 
 // Delete a blog post by ID
-router.delete("/:postId", verifyToken, verifyAdminOrAuthor, async (req, res) => {
-  try {
-    const deletedPost = await Post.findByIdAndDelete(req.params.postId);
+router.delete(
+  "/:postId",
+  verifyToken,
+  verifyAdminOrAuthor,
+  async (req, res) => {
+    try {
+      const deletedPost = await Post.findByIdAndDelete(req.params.postId);
 
-    if (!deletedPost) {
-      return res.status(404).json({ message: "Post not found" });
+      if (!deletedPost) {
+        return res.status(404).json({ message: "Post not found" });
+      }
+
+      res.json({ message: "Post deleted" });
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: "Server Error" });
     }
-
-    res.json({ message: "Post deleted" });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: "Server Error" });
   }
-});
+);
 
 // Search and filter blog posts
 router.get("/search", async (req, res) => {
@@ -195,38 +222,38 @@ router.get("/search", async (req, res) => {
   }
 });
 
-router.post("/upload-image", verifyToken, verifyAdminOrAuthor, upload.single("image"), async (req, res) => {
-  try {
-    const imageUrl = req.file.path;
-    const { blogPostId, position, isCover } = req.body;
+// router.post("/upload-image", verifyToken, verifyAdminOrAuthor, upload.single("image"), async (req, res) => {
+//   try {
+//     const imageUrl = req.file.path;
+//     const { blogPostId, position, isCover } = req.body;
 
-    const blogPost = await Post.findById(blogPostId);
+//     const blogPost = await Post.findById(blogPostId);
 
-    if (!blogPost) {
-      return res.status(404).json({ message: "Blog post not found" });
-    }
+//     if (!blogPost) {
+//       return res.status(404).json({ message: "Blog post not found" });
+//     }
 
-    if (isCover) {
-      // Update the cover image URL
-      blogPost.coverImage = imageUrl;
-    } else {
-      // Create an image object with the URL and position
-      const imageObject = {
-        url: imageUrl,
-        position: position,
-      };
+//     if (isCover) {
+//       // Update the cover image URL
+//       blogPost.coverImage = imageUrl;
+//     } else {
+//       // Create an image object with the URL and position
+//       const imageObject = {
+//         url: imageUrl,
+//         position: position,
+//       };
 
-      // Insert the image object at the specified position
-      blogPost.images.splice(position, 0, imageObject);
-    }
+//       // Insert the image object at the specified position
+//       blogPost.images.splice(position, 0, imageObject);
+//     }
 
-    await blogPost.save();
+//     await blogPost.save();
 
-    res.status(201).json({ imageUrl });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: "Server error" });
-  }
-});
+//     res.status(201).json({ imageUrl });
+//   } catch (error) {
+//     console.error(error);
+//     res.status(500).json({ message: "Server error" });
+//   }
+// });
 
 module.exports = router;

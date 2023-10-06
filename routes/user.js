@@ -9,6 +9,7 @@ const Follow = require("../models/Follow");
 const Post = require("../models/Post");
 const Comment = require("../models/Comment");
 const Reply = require("../models/Reply");
+const Like = require("../models/Like");
 const bcrypt = require('bcrypt');
 
 // Get user activity (liked, commented, and replied posts and comments) for the verifyTokend user
@@ -34,7 +35,7 @@ router.get("/activity", verifyToken, verifyUser, async (req, res) => {
 });
 
 // Define an endpoint to follow another user
-router.post('/follow/:userIdToFollow', async (req, res) => {
+router.post('/follow/:userIdToFollow', verifyToken, async (req, res) => {
   const { id: userId } = req.user;
   const { userIdToFollow } = req.params;
 
@@ -277,7 +278,7 @@ router.post("/reply/:commentId", verifyToken, async (req, res) => {
 });
 
 // Like a comment or reply
-router.post("/like/:type/:id", validateToken, async (req, res) => {
+router.post("/like/:type/:id", verifyToken, async (req, res) => {
   try {
     const userId = req.user.id;
     const { type, id } = req.params;
@@ -343,7 +344,7 @@ router.post("/like/:type/:id", validateToken, async (req, res) => {
 });
 
 // Unlike a comment or reply
-router.post("/unlike/:type/:id", validateToken, async (req, res) => {
+router.post("/unlike/:type/:id", verifyToken, async (req, res) => {
   try {
     const userId = req.user.id;
     const { type, id } = req.params;
@@ -392,7 +393,7 @@ router.post("/unlike/:type/:id", validateToken, async (req, res) => {
   }
 });
 
-app.put('/password', verifyToken, async (req, res) => {
+router.put('/change-password', verifyToken, async (req, res) => {
   const userId = req.user.id; // Assuming you have a user object in req
   const { currentPassword, newPassword } = req.body;
 
