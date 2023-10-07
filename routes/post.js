@@ -158,11 +158,7 @@ router.put("/:postId", verifyToken, verifyAdminOrAuthor, async (req, res) => {
 });
 
 // Delete a blog post by ID
-router.delete(
-  "/:postId",
-  verifyToken,
-  verifyAdminOrAuthor,
-  async (req, res) => {
+router.delete("/:postId", verifyToken, verifyAdminOrAuthor, async (req, res) => {
     try {
       const deletedPost = await Post.findByIdAndDelete(req.params.postId);
 
@@ -221,6 +217,59 @@ router.get("/search", async (req, res) => {
     res.status(500).json({ message: "Server Error" });
   }
 });
+
+router.get('/:postId/comments', async (req, res) => {
+  const postId = req.params.postId;
+
+  try {
+    // Find the post and populate comments
+    const post = await Post.findById(postId)
+      .populate({
+        path: 'comments',
+        populate: {
+          path: 'user',
+          select: ['username', 'role'], // Populate user information (username)
+        },
+      });
+
+    if (!post) {
+      return res.status(404).json({ error: 'Post not found' });
+    }
+
+    // Return comments and their replies
+    res.json(post.comments);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.get('/comments/:commentId/replies', async (req, res) => {
+  const commentId = req.params.commentId;
+
+  try {
+    // Find the comment and populate replies
+    const comment = await Comment.findById(commentId)
+      .populate({
+        path: 'replies',
+        populate: {
+          path: 'user',
+          select: ['username', 'role'], // Populate user information for replies
+        },
+      })
+
+    if (!comment) {
+      return res.status(404).json({ error: 'Comment not found' });
+    }
+
+    // Return the replies
+    res.json(comment.replies);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 
 // router.post("/upload-image", verifyToken, verifyAdminOrAuthor, upload.single("image"), async (req, res) => {
 //   try {

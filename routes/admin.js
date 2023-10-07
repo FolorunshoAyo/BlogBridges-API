@@ -185,8 +185,8 @@ router.get('/posts/:authorId', async (req, res) => {
 });
 
 // Update user profile (username, bio, profileImage)
-router.put('/profile', verifyToken, verifyAdmin, async (req, res) => {
-  const userId = req.user.id; // Assuming you have a user object in req
+router.put('/profile/:userId', verifyToken, verifyAdmin, async (req, res) => {
+  const userId = req.params.userId; // Assuming you have a user object in req
   const { username, bio, profileImage } = req.body;
 
   try {

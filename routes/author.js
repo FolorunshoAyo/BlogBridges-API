@@ -73,8 +73,6 @@ router.get("/statistics", verifyToken, verifyAuthor, async (req, res) => {
       },
     ]);
 
-    console.log(likesAndViewsCount);
-
     // Extract the total likes count from the aggregation result
     const totalLikes = likesAndViewsCount[0]? likesAndViewsCount[0].totalLikes : 0;
     const totalCommentCount = commentCount[0]? commentCount[0].totalCommentCount : 0;
@@ -104,7 +102,7 @@ router.get('/posts/:authorId', async (req, res) => {
 
   try {
     // Find the user
-    const user = await User.findById(authorId);
+    const user = await User.findById(authorId).select('-password');
 
     if (!user) {
       return res.status(404).json({ error: 'User not found' });

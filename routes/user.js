@@ -10,9 +10,11 @@ const Post = require("../models/Post");
 const Comment = require("../models/Comment");
 const Reply = require("../models/Reply");
 const Like = require("../models/Like");
+const Token = require("../models/Token");
 const bcrypt = require('bcrypt');
+const crypto = require("crypto");
 
-// Get user activity (liked, commented, and replied posts and comments) for the verifyTokend user
+// Get user activity (liked, commented, and replied posts and comments) for the user
 router.get("/activity", verifyToken, verifyUser, async (req, res) => {
   try {
     const userId = req.user.id;
@@ -450,6 +452,93 @@ router.put('/update-profile', verifyToken, async (req, res) => {
     return res.status(500).json({ message: 'Internal server error' });
   }
 });
+
+// Route for requesting a password reset
+router.post('/reset-request', async (req, res) => {
+  const { email } = req.body;
+
+  // Generate a unique reset token
+  const token = crypto.randomBytes(32).toString('hex');
+
+  // Find the user by email
+  const user = await User.findOne({ email });
+
+  if (!user) {
+    return res.status(404).json({ message: 'User not found.' });
+  }
+
+  // Save the token in the database
+  const resetToken = new Token({
+    userId: user._id,
+    token,
+  });
+
+  await resetToken.save();
+
+  // Compose and send the reset email
+  const mailOptions = {
+    from: 'your_email@example.com',
+    to: email,
+    subject: 'Password Reset',
+    text: `Click the following link to reset your password: http://yourapp.com/reset/${token}`,
+  };
+
+  transporter.sendMail(mailOptions, (error, info) => {
+    if (error) {
+      console.error('Email sending error:', error);
+      return res.status(500).json({ message: 'Failed to send reset email.' });
+    }
+    console.log('Email sent:', info.response);
+    res.status(200).json({ message: 'Password reset email sent.' });
+  });
+});
+
+// Route for verifying the reset token
+router.get('/reset/:token', async (req, res) => {
+  const { token } = req.params;
+
+  // Find the token in the database
+  const resetToken = await Token.findOne({ token });
+
+  if (!resetToken) {
+    return res.status(400).json({ message: 'Invalid or expired token.' });
+  }
+
+  // Token is valid, so allow the user to reset the password
+  res.status(200).json({ message: 'Token verified. Proceed to reset the password.' });
+});
+
+// Route for updating the user's password after token verification
+router.post('/reset/:token', async (req, res) => {
+  const { token } = req.params;
+  const { newPassword } = req.body;
+
+  // Find the token in the database
+  const resetToken = await Token.findOne({ token });
+
+  if (!resetToken) {
+    return res.status(400).json({ message: 'Invalid or expired token.' });
+  }
+
+  // Find the user by the token's userId
+  const user = await User.findById(resetToken.userId);
+
+  if (!user) {
+    return res.status(404).json({ message: 'User not found.' });
+  }
+
+  // Hash the new password
+  const salt = await bcrypt.genSalt(10);
+  const hashedPassword = await bcrypt.hash(newPassword, salt);
+
+  // Update the user's password and remove the token
+  user.password = hashedPassword;
+  await user.save();
+  await resetToken.remove();
+
+  res.status(200).json({ message: 'Password reset successful.' });
+});
+
 
 
 module.exports = router;
